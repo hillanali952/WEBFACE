@@ -1,18 +1,18 @@
-# PES Face Generator (web)
+# PES Face Generator
 
-Foto -> wajah PES 2021 PC. Jalan di browser HP/PC, tanpa server. Foto tidak diunggah.
+Foto -> wajah PES 2021 PC. Semua diproses di perangkat.
 
-## Pasang di GitHub Pages (bisa dari HP)
-1. Buat repo baru di github.com (publik), mis. `pes-face`.
-2. Add file -> Upload files -> pilih SEMUA file di folder ini (bukan zip-nya) -> Commit.
-3. Settings -> Pages -> Source: "Deploy from a branch", Branch: main, folder: / (root) -> Save.
-4. Tunggu 1-2 menit, buka https://NAMA-ANDA.github.io/pes-face/
-5. Di Chrome: menu -> "Tambahkan ke layar utama" supaya seperti aplikasi.
+## A. Pasang sebagai situs (GitHub Pages)
+Upload semua file ke repo, lalu Settings -> Pages -> Deploy from a branch (main, root).
 
-## Pakai
-1. Pilih zip template wajah PES 2021 (berisi face.fpk). Cukup sekali.
-2. Pilih foto depan. Geser titik hijau bila perlu.
-3. Isi ID wajah dan nama folder, tekan "Buat wajah", unduh ZIP.
+## B. Jadikan APK (dibangun otomatis oleh GitHub, gratis)
+1. Upload semua file ke repo (seperti A). `build-apk.yml` ikut terunggah di root, itu tidak apa-apa.
+2. Di repo: Add file -> Create new file. Pada kolom nama ketik:  .github/workflows/build-apk.yml
+   (ketik garis miring, folder terbentuk sendiri). Tempel seluruh isi file `build-apk.yml`, lalu Commit.
+3. Buka tab Actions -> pilih "Build APK" -> Run workflow. Tunggu sekitar 5-10 menit sampai hijau.
+4. Buka tab Releases (halaman utama repo, sisi kanan/bawah) -> rilis terbaru -> unduh PESFace.apk -> pasang.
+   (Izinkan "pasang dari sumber tidak dikenal" untuk Chrome/File bila diminta.)
+Kalau langkah 3 gagal (merah), buka langkah yang merah, salin tulisan galatnya, dan kirim ke saya.
 
-## Opsional: model landmark lokal
-Taruh `face_landmarker.task` di root repo agar tidak diunduh dari internet tiap kali.
+APK sudah membawa MediaPipe dan modelnya, jadi deteksi wajah jalan tanpa internet.
+Hasil ZIP disimpan di Dokumen/PESFace/ atau lewat tombol Bagikan.

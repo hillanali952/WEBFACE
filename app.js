@@ -5,7 +5,8 @@ const $=id=>document.getElementById(id);
 const log=m=>{$('log').textContent+=m+'\n';$('log').scrollTop=1e9;};
 const status=(m,c='')=>{$('status').textContent=m;$('status').className=c;};
 let tpl=null, photo=null, pts=null, lastZip=null, lastName='';
-const VISION='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const cap=window.Capacitor, isNative=!!(cap&&cap.isNativePlatform&&cap.isNativePlatform());
 const MODEL_CLOUD='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 
 // ---------- penyimpanan (IndexedDB) ----------
@@ -67,14 +68,20 @@ $('btnReset').onclick=()=>{if(photo)startEyes();};
 $('btnView').onclick=()=>{if(!photo)return; if(view.w<photo.w-1){view={x:0,y:0,w:photo.w,h:photo.h};setCanvas();draw();$('btnView').textContent='Perbesar wajah';}else{zoomToFace();$('btnView').textContent='Lihat semua';}};
 
 let landmarker=null;
+async function exists(u){try{const r=await fetch(u,{method:'HEAD'});return r.ok;}catch(e){return false;}}
 async function getLandmarker(){ if(landmarker)return landmarker;
-  const {FaceLandmarker,FilesetResolver}=await import(VISION+'/vision_bundle.mjs');
-  const fs=await FilesetResolver.forVisionTasks(VISION+'/wasm');
-  let model=MODEL_CLOUD; try{const r=await fetch('face_landmarker.task',{method:'HEAD'});if(r.ok)model='face_landmarker.task';}catch(e){}
+  const sources=[]; if(await exists('mp/vision_bundle.mjs'))sources.push({base:'mp',model:'face_landmarker.task',local:true});
+  sources.push({base:CDN,model:(await exists('face_landmarker.task'))?'face_landmarker.task':MODEL_CLOUD});
   let last='';
-  for(const delegate of ['GPU','CPU']){
-    try{landmarker=await FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:model,delegate},runningMode:'IMAGE',numFaces:1});return landmarker;}
-    catch(e){last=delegate+': '+e.message;log('Model ('+delegate+') gagal: '+e.message);}
+  for(const s of sources){
+    try{
+      const {FaceLandmarker,FilesetResolver}=await import(s.local?'./mp/vision_bundle.mjs':s.base+'/vision_bundle.mjs');
+      const fs=await FilesetResolver.forVisionTasks(s.base+'/wasm');
+      for(const delegate of ['GPU','CPU']){
+        try{landmarker=await FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:s.model,delegate},runningMode:'IMAGE',numFaces:1});return landmarker;}
+        catch(e){last=(s.local?'lokal ':'CDN ')+delegate+': '+e.message;log('Model gagal ('+last+')');}
+      }
+    }catch(e){last=(s.local?'lokal: ':'CDN: ')+e.message;log('Muat MediaPipe gagal ('+last+')');}
   }
   throw new Error(last||'model landmark tidak bisa dimuat');
 }
@@ -107,13 +114,24 @@ $('btnGo').onclick=async()=>{
     pv.getContext('2d').putImageData(new ImageData(r.preview.data,r.preview.w,r.preview.h),0,0);
     const z=new JSZip();for(const f of r.files)z.file(f.path,f.data);
     lastZip=await z.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});lastName='face_'+id+'.zip';
-    $('btnZip').style.display='block';gst('Wajah jadi. Unduh ZIP dan tempel ke game di PC.','ok');
+    $('btnZip').style.display='block';if(isNative)$('btnShare').style.display='block';gst('Wajah jadi. Unduh ZIP dan tempel ke game di PC.','ok');
     const th=document.createElement('canvas');th.width=96;th.height=128;th.getContext('2d').drawImage(pv,0,0,96,128);
     await tx('hist','readwrite',s=>s.put({t:Date.now(),id,name,thumb:th.toDataURL('image/jpeg',.7),blob:lastZip}));renderHist();
   }catch(e){gst('Gagal: '+e.message,'err');log(e.stack||String(e));}
   refresh();};
-function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);}
+const b64=blob=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.readAsDataURL(blob);});
+async function shareNative(blob,name){const {Filesystem,Share}=cap.Plugins;
+  const r=await Filesystem.writeFile({path:name,data:await b64(blob),directory:'CACHE'});
+  await Share.share({title:name,files:[r.uri],dialogTitle:'Simpan / kirim '+name});}
+async function saveNative(blob,name){const {Filesystem}=cap.Plugins;
+  try{await Filesystem.writeFile({path:'PESFace/'+name,data:await b64(blob),directory:'DOCUMENTS',recursive:true});
+    gst('Tersimpan: Dokumen/PESFace/'+name,'ok');}
+  catch(e){log('Simpan ke Dokumen gagal: '+e.message);gst('Tidak bisa menyimpan langsung, membuka menu bagikan…');await shareNative(blob,name);}}
+function download(blob,name){ if(isNative){saveNative(blob,name).catch(e=>gst('Gagal menyimpan: '+e.message,'err'));return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);}
 $('btnZip').onclick=()=>lastZip&&download(lastZip,lastName);
+$('btnShare').onclick=()=>lastZip&&shareNative(lastZip,lastName).catch(e=>gst('Gagal membagikan: '+e.message,'err'));
+if(isNative){$('btnZip').textContent='Simpan ZIP ke Dokumen';$('btnShare').dataset.native='1';}
 async function renderHist(){
   const all=await tx('hist','readonly',s=>s.getAll())||[]; const h=$('hist');
   if(!all.length){h.innerHTML='<small>Belum ada.</small>';return;}
@@ -125,4 +143,4 @@ async function renderHist(){
     d.append(b1,b2);h.appendChild(d);});
 }
 window.__app={setPoints:p=>{pts=p;verified=true;mode='';taps=[];zoomToFace();},get pts(){return pts;},get view(){return view;}};
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(!isNative&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});

@@ -47,8 +47,9 @@ export function makeTexture(photo,tpl,pts,opts={}){
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const e=((x-512)/238)**2+((y-525)/290)**2;
     let m=clip((1-e)/0.35,0,1)*clip((y-cutTop)/30,0,1);
-    {const a=((x-TT.eyeL[0])/66)**2+((y-TT.eyeL[1])/38)**2, b=((x-TT.eyeR[0])/66)**2+((y-TT.eyeR[1])/38)**2, k=clip((1-Math.min(a,b))/0.4,0,1);
-      eyeK[y*W+x]=keepEyes?k:0; if(keepEyes)m*=1-k;}
+    {const a=((x-TT.eyeL[0])/54)**2+((y-TT.eyeL[1])/30)**2, b=((x-TT.eyeR[0])/54)**2+((y-TT.eyeR[1])/30)**2, k=clip((1-Math.min(a,b))/0.35,0,1);
+      const ga=((x-TT.eyeL[0])/44)**2+((y-TT.eyeL[1])/24)**2, gb=((x-TT.eyeR[0])/44)**2+((y-TT.eyeR[1])/24)**2;
+      eyeK[y*W+x]=keepEyes?clip((1-Math.min(ga,gb))/0.5,0,1):0; if(keepEyes)m*=1-k;}
     if(keepLips){const el=((x-512)/120)**2+((y-628)/58)**2;m*=1-clip((1-el)/0.5,0,1);}
     mask[y*W+x]=m;
   }
